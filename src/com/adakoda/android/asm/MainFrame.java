@@ -98,6 +98,7 @@ public class MainFrame extends JFrame {
 	private AdbChimpDevice mChimpDevice;
 
 	private MonitorThread mMonitorThread;
+    private boolean mDeviceSupportZooom = false;
 
 	private String mBuildDevice = "";
 
@@ -137,7 +138,11 @@ public class MainFrame extends JFrame {
 
 		mChimpDevice = new AdbChimpDevice(mDevice);
 		mBuildDevice = mChimpDevice.getProperty("build.device");
-
+        if (mDeviceSupportZooom) {
+            mChimpDevice.shell("setprop screencap.zoom " + mZoom);
+        } else {
+            mChimpDevice.shell("setprop screencap.zoom 1.0");
+        }
 		startMonitor();
 	}
 
@@ -152,6 +157,9 @@ public class MainFrame extends JFrame {
 	public void setZoom(double zoom) {
 		if (mZoom != zoom) {
 			mZoom = zoom;
+            if (mDeviceSupportZooom) {
+                mChimpDevice.shell("setprop screencap.zoom " + zoom);
+            }
 			savePrefs();
 			updateSize();
 		}
@@ -223,8 +231,12 @@ public class MainFrame extends JFrame {
 			height = mRawImageWidth;
 		}
 		Insets insets = getInsets();
-		int newWidth = (int) (width * mZoom) + insets.left + insets.right;
-		int newHeight = (int) (height * mZoom) + insets.top + insets.bottom;
+        if (!mDeviceSupportZooom) {
+            width = (int) (width * mZoom);
+            height = (int) (height * mZoom);
+        }
+		int newWidth = (int) (width) + insets.left + insets.right;
+		int newHeight = (int) (height) + insets.top + insets.bottom;
 
 		// Known bug
 		// If new window size is over physical window size, cannot update window
@@ -251,6 +263,12 @@ public class MainFrame extends JFrame {
 				"Could not find adb, please install Android SDK and set path to adb.",
 				"Error", JOptionPane.ERROR_MESSAGE);
 		}
+
+        String device_support_zoom = System.getenv("ANDROID_DEVICE_SUPPORT_ZOOM");
+        if (device_support_zoom.compareTo("1") == 0) {
+            mDeviceSupportZooom = true;
+			System.out.println("device support zoom");
+        }
 
 		parseArgs(args);
 		
@@ -400,7 +418,12 @@ public class MainFrame extends JFrame {
 		ButtonGroup buttonGroup = new ButtonGroup();
 
 		addRadioButtonMenuItemZoom(menuZoom, buttonGroup, 0.1, "10%", -1, mZoom);
+		addRadioButtonMenuItemZoom(menuZoom, buttonGroup, 0.15, "15%", -1, mZoom);
+		addRadioButtonMenuItemZoom(menuZoom, buttonGroup, 0.2, "20%", -1, mZoom);
 		addRadioButtonMenuItemZoom(menuZoom, buttonGroup, 0.25, "25%", -1, mZoom);
+		addRadioButtonMenuItemZoom(menuZoom, buttonGroup, 0.3, "30%", -1, mZoom);
+        addRadioButtonMenuItemZoom(menuZoom, buttonGroup, 0.35, "35%", -1, mZoom);
+        addRadioButtonMenuItemZoom(menuZoom, buttonGroup, 0.4, "40%", -1, mZoom);
 		addRadioButtonMenuItemZoom(menuZoom, buttonGroup, 0.5, "50%", KeyEvent.VK_5, mZoom);
 		addRadioButtonMenuItemZoom(menuZoom, buttonGroup, 0.75, "75%", KeyEvent.VK_7, mZoom);
 		addRadioButtonMenuItemZoom(menuZoom, buttonGroup, 1.0, "100%", KeyEvent.VK_1, mZoom);
@@ -610,7 +633,9 @@ public class MainFrame extends JFrame {
 			try {
 				if (isGlass()) {
 					// TODO
-				} else {
+				} else if (e.getButton() == 2) {
+					mChimpDevice.getManager().keyUp("KEYCODE_POWER");
+				} else if (e.getButton() == 1) {
 					Point p = new Point(e.getX(), e.getY());
 					Point real = getRealPoint(p);
 					mChimpDevice.getManager().touchUp(real.x, real.y);
@@ -624,7 +649,9 @@ public class MainFrame extends JFrame {
 			try {
 				if (isGlass()) {
 					mChimpDevice.getManager().press("KEYCODE_DPAD_CENTER");
-				} else {
+				} else if (e.getButton() == 2) {
+					mChimpDevice.getManager().keyDown("KEYCODE_POWER");
+				} else if (e.getButton() == 1) {
 					Point p = new Point(e.getX(), e.getY());
 					Point real = getRealPoint(p);
 					mChimpDevice.getManager().touchDown(real.x, real.y);
@@ -769,8 +796,13 @@ public class MainFrame extends JFrame {
 					srcWidth = mRawImageHeight;
 					srcHeight = mRawImageWidth;
 				}
-				dstWidth = (int) (srcWidth * mZoom);
-				dstHeight = (int) (srcHeight * mZoom);
+                if (mDeviceSupportZooom) {
+                    dstWidth = (int) (srcWidth);
+                    dstHeight = (int) (srcHeight);
+                } else {
+                    dstWidth = (int) (srcWidth * mZoom);
+                    dstHeight = (int) (srcHeight * mZoom);
+                }
 				if (mZoom == 1.0) {
 					g.drawImage(mFBImage, 0, 0, dstWidth, dstHeight, 0, 0,
 							srcWidth, srcHeight, null);
